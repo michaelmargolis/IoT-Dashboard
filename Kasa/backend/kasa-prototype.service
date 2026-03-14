@@ -1,0 +1,17 @@
+[Unit]
+Description=Kasa Prototype Backend Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mem
+WorkingDirectory=/home/mem/kasa_prototype
+ExecStart=/usr/bin/python3 /home/mem/kasa_prototype/kasa_backend_server.py --config /home/mem/kasa_prototype/kasa_config.json
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

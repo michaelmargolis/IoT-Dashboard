@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1100</width>
+    <height>760</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Kasa Prototype Client V2</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QGroupBox" name="connectionGroupBox">
+      <property name="title"><string>Connection</string></property>
+      <layout class="QGridLayout" name="gridLayout">
+       <item row="0" column="0"><widget class="QLabel" name="hostLabel"><property name="text"><string>Host</string></property></widget></item>
+       <item row="0" column="1"><widget class="QLineEdit" name="hostEdit"/></item>
+       <item row="0" column="2"><widget class="QLabel" name="portLabel"><property name="text"><string>Port</string></property></widget></item>
+       <item row="0" column="3"><widget class="QLineEdit" name="portEdit"/></item>
+       <item row="0" column="4"><widget class="QPushButton" name="connectButton"><property name="text"><string>Connect</string></property></widget></item>
+       <item row="0" column="5"><widget class="QPushButton" name="disconnectButton"><property name="text"><string>Disconnect</string></property></widget></item>
+       <item row="0" column="6"><widget class="QPushButton" name="toggleA1Button"><property name="text"><string>Toggle A1</string></property></widget></item>
+       <item row="1" column="0"><widget class="QLabel" name="connectionStatusTextLabel"><property name="text"><string>Status</string></property></widget></item>
+       <item row="1" column="1" colspan="6"><widget class="QLabel" name="connectionStatusLabel"><property name="text"><string>Disconnected</string></property></widget></item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="devicesGroupBox">
+      <property name="title"><string>Plugs</string></property>
+      <layout class="QVBoxLayout" name="devicesLayout">
+       <item><widget class="QTableWidget" name="plugsTable"/></item>
+       <item>
+        <layout class="QHBoxLayout" name="actionButtonsLayout">
+         <item><widget class="QPushButton" name="toggleRelayButton"><property name="text"><string>Toggle Relay</string></property></widget></item>
+         <item><widget class="QPushButton" name="energyButton"><property name="text"><string>Energy</string></property></widget></item>
+         <item><widget class="QPushButton" name="detailsButton"><property name="text"><string>Details</string></property></widget></item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="lowerButtonsLayout">
+         <item><widget class="QPushButton" name="refreshButton"><property name="text"><string>Refresh</string></property></widget></item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="debugGroupBox">
+      <property name="title"><string>Debug</string></property>
+      <layout class="QHBoxLayout" name="debugLayout">
+       <item><widget class="QCheckBox" name="showEventsCheckBox"><property name="text"><string>ShowEvents</string></property></widget></item>
+       <item><widget class="QCheckBox" name="showJsonCheckBox"><property name="text"><string>Show JSON</string></property></widget></item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

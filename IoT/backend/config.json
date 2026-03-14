@@ -1,0 +1,20 @@
+{
+  "printer_ip": "192.168.50.92",
+  "lan_ip": "192.168.1.2",
+  "lan_broadcast": "192.168.1.255",
+  "iot_interface_ip": "192.168.50.1",
+  "ssdp_multicast": "239.255.255.250",
+  "ssdp_port": 1990,
+  "ws_host": "0.0.0.0",
+  "ws_port": 8765,
+  "iot_toggle_chain": "iot_inet_toggle",
+  "allowed_client_ips": [
+    "192.168.1.50"
+  ],
+  "diag_interval_s": 10.0,
+  "system_interval_s": 5.0,
+  "broadcast_interval_s": 1.0,
+  "event_log_max": 100,
+  "event_tail_default": 20,
+  "relay_rx_timeout_s": 30.0
+}

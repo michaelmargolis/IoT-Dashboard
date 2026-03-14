@@ -1,0 +1,11 @@
+{
+  "backend_ip": "192.168.1.2",
+  "backend_port": 8765,
+  "relay_packet_timeout_s": 10,
+  "client_ping_interval_ms": 2000,
+  "client_ping_timeout_ms": 800,
+  "cpu_temp_warning": 60,
+  "cpu_temp_red": 75,
+  "reconnect_interval_ms": 3000,
+  "event_limit": 10
+}

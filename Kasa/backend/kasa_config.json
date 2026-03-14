@@ -1,0 +1,20 @@
+{
+  "ws_host": "0.0.0.0",
+  "ws_port": 8775,
+  "allowed_client_ips": [
+    "192.168.1.50"
+  ],
+  "iot_ip": "192.168.50.1",
+  "kasa_discovery_interval_s": 300,
+  "kasa_status_interval_s": 15,
+  "kasa_command_timeout_s": 3,
+  "kasa_role_aliases": {
+    "a1_smartplug": "A1 Smartplug"
+  },
+  "kasa_roles": {
+    "a1_smartplug": null
+  },
+  "broadcast_interval_s": 1.0,
+  "event_log_max": 100,
+  "event_tail_default": 20
+}
