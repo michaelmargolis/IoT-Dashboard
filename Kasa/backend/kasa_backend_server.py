@@ -81,6 +81,10 @@ class KasaBackend:
             await safe_send(websocket, await self.kasa.set_relay(msg.get("cache_id"), bool(msg.get("enabled")))); return
         if t == "kasa_get_energy":
             await safe_send(websocket, await self.kasa.get_energy(msg.get("cache_id"))); return
+        if t == "kasa_get_a1_power":
+            await safe_send(websocket, {"type": "ack", "action": "kasa_get_a1_power", "ok": True, "a1_power": self.kasa.build_a1_power_status()}); return
+        if t == "kasa_toggle_a1_power":
+            await safe_send(websocket, await self.kasa.toggle_a1_power()); return
         await safe_send(websocket, {"type": "error", "message": f"unknown message type: {t}"})
 
     async def ws_handler(self, websocket):
@@ -115,7 +119,7 @@ DEFAULT_CONFIG = {
     "ws_port": 8775,
     "allowed_client_ips": [], # ["192.168.1.50"],
     "iot_ip": "192.168.50.1",
-    "iot_broadcast": "255,255,255.255",
+    "iot_broadcast": "255.255.255.255",
     "kasa_discovery_interval_s": 300,
     "kasa_status_interval_s": 15,
     "kasa_command_timeout_s": 3,

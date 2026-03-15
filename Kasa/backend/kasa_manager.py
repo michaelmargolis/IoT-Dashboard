@@ -218,20 +218,36 @@ class KasaManager:
         self.events.add("kasa", "Kasa energy queried", cache_id=cache_id)
         return {"type": "ack", "action": "kasa_get_energy", "ok": True, "cache_id": cache_id, "energy": norm}
 
+    async def toggle_a1_power(self):
+        a1_power = self.build_a1_power_status()
+        cache_id = a1_power.get("cache_id")
+        if not a1_power.get("role_resolved"):
+            return {"type": "ack", "action": "kasa_toggle_a1_power", "ok": False, "error": a1_power.get("last_error", "Role unresolved"), "a1_power": a1_power}
+        if not a1_power.get("device_present"):
+            return {"type": "ack", "action": "kasa_toggle_a1_power", "ok": False, "error": a1_power.get("last_error", "Mapped device not present"), "a1_power": a1_power}
+        if a1_power.get("relay_on") is None:
+            return {"type": "ack", "action": "kasa_toggle_a1_power", "ok": False, "error": "A1 relay state unknown", "a1_power": a1_power}
+        result = await self.set_relay(cache_id, not bool(a1_power.get("relay_on")))
+        return {"type": "ack", "action": "kasa_toggle_a1_power", "ok": bool(result.get("ok")), "error": result.get("error"), "a1_power": self.build_a1_power_status()}
+
     def _device_brief(self, dev: KasaDeviceState):
         return {"cache_id": dev.cache_id, "alias": dev.alias, "reachable": dev.reachable, "relay_on": dev.relay_on, "last_error": dev.last_error}
+
+    def build_a1_power_status(self):
+        cache_id = self.roles.get("a1_smartplug")
+        alias = self.role_aliases.get("a1_smartplug")
+        if not cache_id:
+            return {"cache_id": None, "alias": alias, "reachable": False, "relay_on": None, "powered_off": None, "role_resolved": False, "device_present": False, "last_refresh_utc": self.last_refresh_utc, "last_error": "Role unresolved"}
+        dev = self.devices.get(cache_id)
+        if not dev:
+            return {"cache_id": cache_id, "alias": alias, "reachable": False, "relay_on": None, "powered_off": None, "role_resolved": True, "device_present": False, "last_refresh_utc": self.last_refresh_utc, "last_error": "Mapped device not present"}
+        return {"cache_id": dev.cache_id, "alias": dev.alias, "reachable": dev.reachable, "relay_on": dev.relay_on, "powered_off": (dev.relay_on is False) if dev.reachable else None, "role_resolved": True, "device_present": True, "last_refresh_utc": dev.last_refresh_utc or self.last_refresh_utc, "last_error": dev.last_error}
 
     def build_status_block(self):
         return {"device_count": len(self.devices), "last_refresh_utc": self.last_refresh_utc, "last_error": self.last_error, "devices": {cid: {"cache_id": d.cache_id, "device_id": d.device_id, "child_id": d.child_id, "alias": d.alias, "model": d.model, "ip": d.ip, "reachable": d.reachable, "relay_on": d.relay_on, "has_emeter": d.has_emeter, "last_seen_utc": d.last_seen_utc, "last_refresh_utc": d.last_refresh_utc, "last_error": d.last_error} for cid, d in self.devices.items()}}
 
     def build_dashboard_controls(self):
-        cache_id = self.roles.get("a1_smartplug")
-        if not cache_id:
-            return {"a1_power": {"cache_id": None, "alias": self.role_aliases.get("a1_smartplug"), "reachable": False, "relay_on": None, "last_error": "Role unresolved"}}
-        dev = self.devices.get(cache_id)
-        if not dev:
-            return {"a1_power": {"cache_id": cache_id, "alias": self.role_aliases.get("a1_smartplug"), "reachable": False, "relay_on": None, "last_error": "Mapped device not present"}}
-        return {"a1_power": self._device_brief(dev)}
+        return {"a1_power": self.build_a1_power_status()}
 
     async def periodic_discovery(self, interval_s: float):
         while True:
