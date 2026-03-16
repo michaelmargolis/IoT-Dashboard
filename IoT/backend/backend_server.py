@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# backend_server.py
+# version: v2.3
+# date: 2026-03-16 08:58 GMT
 from __future__ import annotations
 import argparse, asyncio, collections, dataclasses, json, socket, subprocess, time, os
 from pathlib import Path
@@ -83,19 +86,44 @@ class KasaA1Client:
         self.cfg = cfg
         self.events = events
         self.state = KasaA1State()
+        self.ws = None
+        self.ws_lock = asyncio.Lock()
 
     async def _request(self, payload: Dict[str, Any]):
         timeout = float(self.cfg.get("kasa_timeout_s", 1.0))
         try:
-            async with websockets.connect(self.cfg["kasa_ws_url"], open_timeout=timeout, ping_interval=20, ping_timeout=20) as ws:
-                await asyncio.wait_for(ws.send(json.dumps(payload)), timeout=timeout)
-                raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
+            async with self.ws_lock:
+                if self.ws is None or getattr(self.ws, "closed", False):
+                    self.ws = await websockets.connect(
+                        self.cfg["kasa_ws_url"],
+                        open_timeout=timeout,
+                        ping_interval=20,
+                        ping_timeout=20
+                    )
+                await asyncio.wait_for(self.ws.send(json.dumps(payload)), timeout=timeout)
+                raw = await asyncio.wait_for(self.ws.recv(), timeout=timeout)
                 return json.loads(raw)
         except Exception as e:
+            async with self.ws_lock:
+                if self.ws is not None:
+                    try:
+                        await self.ws.close()
+                    except Exception:
+                        pass
+                    self.ws = None
             self.state.service_available = False
             self.state.last_check_utc = utc_now()
             self.state.last_error = str(e)
             return None
+
+    async def close(self):
+        async with self.ws_lock:
+            if self.ws is not None:
+                try:
+                    await self.ws.close()
+                except Exception:
+                    pass
+                self.ws = None
 
     def _apply_a1_power(self, a1_power: Optional[Dict[str, Any]]):
         if not a1_power:
@@ -494,7 +522,10 @@ class Backend:
         asyncio.create_task(self.broadcast_loop())
         async with websockets.serve(self.ws_handler, self.cfg["ws_host"], self.cfg["ws_port"], ping_interval=20, ping_timeout=20):
             self.events.add("server", "WebSocket server started", host=self.cfg["ws_host"], port=self.cfg["ws_port"])
+            try:
             await asyncio.Future()
+            finally:
+                await self.kasa_a1.close()
 
 DEFAULT_CONFIG = {
     "printer_ip": "192.168.50.92",
