@@ -521,11 +521,11 @@ class Backend:
         asyncio.create_task(self.system.periodic(self.cfg["system_interval_s"]))
         asyncio.create_task(self.broadcast_loop())
         async with websockets.serve(self.ws_handler, self.cfg["ws_host"], self.cfg["ws_port"], ping_interval=20, ping_timeout=20):
-            self.events.add("server", "WebSocket server started", host=self.cfg["ws_host"], port=self.cfg["ws_port"])
+            self.events.add("server", "Kasa WebSocket server started", host=self.cfg["ws_host"], port=self.cfg["ws_port"])
             try:
-            await asyncio.Future()
+                await asyncio.Future()
             finally:
-                await self.kasa_a1.close()
+                pass
 
 DEFAULT_CONFIG = {
     "printer_ip": "192.168.50.92",
