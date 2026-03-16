@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# kasa_backend_server.py
+# version: v2.5
+# date: 2026-03-16 20:46 GMT
 from __future__ import annotations
+
 import argparse, asyncio, collections, json, time
 from typing import Any, Deque, Dict
 import websockets
@@ -31,7 +35,6 @@ class KasaBackend:
         self.events = EventLog(maxlen=cfg["event_log_max"])
         self.kasa = KasaManager(cfg, self.events)
         self.clients = set()
-        
 
     def build_status(self):
         return {
@@ -98,8 +101,11 @@ class KasaBackend:
         self.events.add("client", "Client connected", remote_ip=remote)
         await safe_send(websocket, self.build_status())
         try:
-            async for raw in websocket:
-                await self.handle_message(websocket, raw)
+            try:
+                async for raw in websocket:
+                    await self.handle_message(websocket, raw)
+            except (websockets.exceptions.ConnectionClosed, asyncio.CancelledError):
+                pass
         finally:
             self.clients.discard(websocket)
             self.events.add("client", "Client disconnected", remote_ip=remote)
@@ -129,6 +135,7 @@ DEFAULT_CONFIG = {
     "event_log_max": 100,
     "event_tail_default": 20
 }
+
 def load_config(path):
     cfg = dict(DEFAULT_CONFIG)
     if path:
@@ -136,10 +143,12 @@ def load_config(path):
             cfg.update(json.load(f))
             print("using config at", path)
     return cfg
+
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config")
     args = ap.parse_args()
     await KasaBackend(load_config(args.config)).run()
+
 if __name__ == "__main__":
     asyncio.run(main())
