@@ -38,6 +38,18 @@ class SystemState:
     ifaces: str = ""
     last_error: Optional[str] = None
 
+@dataclasses.dataclass
+class KasaA1State:
+    service_available: bool = False
+    relay_on: Optional[bool] = None
+    powered_off: bool = False
+    role_resolved: Optional[bool] = None
+    device_present: Optional[bool] = None
+    cache_id: Optional[str] = None
+    alias: Optional[str] = None
+    last_check_utc: Optional[str] = None
+    last_error: Optional[str] = None
+
 class EventLog:
     def __init__(self, maxlen: int = 100):
         self._events: Deque[Dict[str, Any]] = collections.deque(maxlen=maxlen)
@@ -65,6 +77,61 @@ async def safe_send(websocket, payload):
         return True
     except websockets.exceptions.ConnectionClosed:
         return False
+
+class KasaA1Client:
+    def __init__(self, cfg, events):
+        self.cfg = cfg
+        self.events = events
+        self.state = KasaA1State()
+
+    async def _request(self, payload: Dict[str, Any]):
+        timeout = float(self.cfg.get("kasa_timeout_s", 1.0))
+        try:
+            async with websockets.connect(self.cfg["kasa_ws_url"], open_timeout=timeout, ping_interval=20, ping_timeout=20) as ws:
+                await asyncio.wait_for(ws.send(json.dumps(payload)), timeout=timeout)
+                raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
+                return json.loads(raw)
+        except Exception as e:
+            self.state.service_available = False
+            self.state.last_check_utc = utc_now()
+            self.state.last_error = str(e)
+            return None
+
+    def _apply_a1_power(self, a1_power: Optional[Dict[str, Any]]):
+        if not a1_power:
+            self.state.service_available = False
+            self.state.last_check_utc = utc_now()
+            self.state.last_error = "No A1 power payload"
+            return self.state
+        self.state.service_available = True
+        self.state.relay_on = a1_power.get("relay_on")
+        self.state.powered_off = (a1_power.get("relay_on") is False)
+        self.state.role_resolved = a1_power.get("role_resolved")
+        self.state.device_present = a1_power.get("device_present")
+        self.state.cache_id = a1_power.get("cache_id")
+        self.state.alias = a1_power.get("alias")
+        self.state.last_check_utc = a1_power.get("last_refresh_utc") or utc_now()
+        self.state.last_error = a1_power.get("last_error")
+        return self.state
+
+    async def refresh(self):
+        reply = await self._request({"type": "kasa_get_a1_power"})
+        if not reply:
+            return self.state
+        self._apply_a1_power(reply.get("a1_power"))
+        return self.state
+
+    async def toggle(self):
+        reply = await self._request({"type": "kasa_toggle_a1_power"})
+        if not reply:
+            return {"type": "ack", "action": "toggle_a1_power", "ok": False, "error": self.state.last_error, "a1_power": None}
+        self._apply_a1_power(reply.get("a1_power"))
+        return {"type": "ack", "action": "toggle_a1_power", "ok": bool(reply.get("ok")), "error": reply.get("error"), "a1_power": reply.get("a1_power")}
+
+    async def periodic(self, interval_s):
+        while True:
+            await self.refresh()
+            await asyncio.sleep(interval_s)
 
 class FirewallController:
     def __init__(self, cfg, events):
@@ -138,11 +205,12 @@ class FirewallController:
         return True
 
 class Relay:
-    def __init__(self, cfg, events):
+    def __init__(self, cfg, events, is_a1_powered_off):
         self.cfg = cfg
         self.events = events
         self.state = RelayState()
         self.debug_verbose = False
+        self.is_a1_powered_off = is_a1_powered_off
 
     def run_blocking(self):
         rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -165,6 +233,10 @@ class Relay:
             try:
                 data, addr = rx.recvfrom(4096)
             except socket.timeout:
+                if self.is_a1_powered_off():
+                    self.state.last_error = None
+                    self.state.last_seen_monotonic = None
+                    continue
                 self.state.timeout_count += 1
                 self.state.last_error = f"No discovery packets for {self.cfg.get('relay_rx_timeout_s', 30.0)}s"
                 self.events.add("relay", "Relay receive timeout; restarting socket", timeout_count=self.state.timeout_count, timeout_s=self.cfg.get("relay_rx_timeout_s", 30.0))
@@ -197,12 +269,19 @@ class Relay:
                 await asyncio.sleep(1)
 
 class Diagnostics:
-    def __init__(self, cfg, events):
+    def __init__(self, cfg, events, is_a1_powered_off):
         self.cfg = cfg
         self.events = events
         self.state = DiagState()
+        self.is_a1_powered_off = is_a1_powered_off
     async def run_once(self):
         try:
+            if self.is_a1_powered_off():
+                self.state.tcp_8883_ok = None
+                self.state.tcp_990_ok = None
+                self.state.last_check_utc = utc_now()
+                self.state.last_error = None
+                return
             ip = self.cfg["printer_ip"]
             self.state.tcp_8883_ok = await asyncio.to_thread(tcp_check, ip, 8883, 2.0)
             self.state.tcp_990_ok = await asyncio.to_thread(tcp_check, ip, 990, 2.0)
@@ -254,16 +333,20 @@ class Backend:
     def __init__(self, cfg):
         self.cfg = cfg
         self.events = EventLog(maxlen=cfg["event_log_max"])
-        self.relay = Relay(cfg, self.events)
-        self.diag = Diagnostics(cfg, self.events)
+        self.kasa_a1 = KasaA1Client(cfg, self.events)
+        self.relay = Relay(cfg, self.events, self.is_a1_powered_off)
+        self.diag = Diagnostics(cfg, self.events, self.is_a1_powered_off)
         self.firewall = FirewallController(cfg, self.events)
         self.system = SystemStatus()
         self.clients = set()
+    def is_a1_powered_off(self):
+        return self.kasa_a1.state.service_available and self.kasa_a1.state.powered_off
     def clear_errors(self):
         self.relay.state.last_error = None
         self.diag.state.last_error = None
         self.firewall.state.last_error = None
         self.system.state.last_error = None
+        self.kasa_a1.state.last_error = None
         self.events.add("action", "Cleared last_error values")
     def startup_self_check(self):
         ok = True
@@ -277,7 +360,7 @@ class Backend:
         return ok
     def build_status(self):
         relay_age = None
-        if self.relay.state.last_seen_monotonic is not None:
+        if not self.is_a1_powered_off() and self.relay.state.last_seen_monotonic is not None:
             relay_age = round(time.monotonic() - self.relay.state.last_seen_monotonic, 1)
         return {
             "type": "status",
@@ -305,10 +388,25 @@ class Backend:
             "relay_devices": {
                 "bambu_A1": {
                     "ip": self.cfg["printer_ip"],
+                    "status": "Powered Off" if self.is_a1_powered_off() else "Active",
+                    "powered_off": self.is_a1_powered_off(),
                     "tcp_8883_ok": self.diag.state.tcp_8883_ok,
                     "tcp_990_ok": self.diag.state.tcp_990_ok,
                     "last_check_utc": self.diag.state.last_check_utc,
                     "last_error": self.diag.state.last_error
+                }
+            },
+            "kasa": {
+                "a1_power": {
+                    "service_available": self.kasa_a1.state.service_available,
+                    "relay_on": self.kasa_a1.state.relay_on,
+                    "powered_off": self.kasa_a1.state.powered_off,
+                    "role_resolved": self.kasa_a1.state.role_resolved,
+                    "device_present": self.kasa_a1.state.device_present,
+                    "cache_id": self.kasa_a1.state.cache_id,
+                    "alias": self.kasa_a1.state.alias,
+                    "last_check_utc": self.kasa_a1.state.last_check_utc,
+                    "last_error": self.kasa_a1.state.last_error
                 }
             },
             "firewall": {
@@ -363,6 +461,8 @@ class Backend:
         if t == "clear_errors":
             self.clear_errors()
             await safe_send(websocket, {"type": "ack", "action": "clear_errors", "ok": True}); return
+        if t == "toggle_a1_power":
+            await safe_send(websocket, await self.kasa_a1.toggle()); return
         if t == "ping":
             await safe_send(websocket, {"type": "pong", "ts": utc_now()}); return
         await safe_send(websocket, {"type": "error", "message": f"unknown message type: {t}"})
@@ -383,9 +483,11 @@ class Backend:
             self.events.add("client", "Client disconnected", remote_ip=remote)
     async def run(self):
         self.firewall.read()
+        await self.kasa_a1.refresh()
         await self.diag.run_once()
         await self.system.refresh()
         self.startup_self_check()
+        asyncio.create_task(self.kasa_a1.periodic(self.cfg["kasa_poll_interval_s"]))
         asyncio.create_task(self.relay.run())
         asyncio.create_task(self.diag.periodic(self.cfg["diag_interval_s"]))
         asyncio.create_task(self.system.periodic(self.cfg["system_interval_s"]))
@@ -411,6 +513,9 @@ DEFAULT_CONFIG = {
     "event_log_max": 100,
     "event_tail_default": 20,
     "relay_rx_timeout_s": 30.0,
+    "kasa_ws_url": "ws://127.0.0.1:8775",
+    "kasa_poll_interval_s": 2.0,
+    "kasa_timeout_s": 1.0,
 }
 def load_config(path):
     cfg = dict(DEFAULT_CONFIG)
