@@ -117,7 +117,7 @@ class KasaBackend:
 DEFAULT_CONFIG = {
     "ws_host": "0.0.0.0",
     "ws_port": 8775,
-    "allowed_client_ips": [], # ["192.168.1.50"],
+    "allowed_client_ips": [ "192.168.1.50", "127.0.0.1" ],
     "iot_ip": "192.168.50.1",
     "iot_broadcast": "255.255.255.255",
     "kasa_discovery_interval_s": 300,
