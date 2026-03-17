@@ -1,3 +1,6 @@
+# dashboard_client.py
+# version: v2.0
+# date: 2026-03-17 19:50 GMT
 import json
 import sys
 from datetime import datetime
@@ -118,6 +121,9 @@ class MainWindow(QMainWindow):
         self.clear_errors_button.clicked.connect(
             lambda: self.send_message({"type": "clear_errors"})
         )
+        self.A1_toggle_button.clicked.connect(
+            lambda: self.send_message({"type": "toggle_a1_power"})
+        )
         self.show_recent_events_checkbox.toggled.connect(self.on_toggle_events)
 
         self.events_table.setHorizontalHeaderLabels(["Time", "Kind", "Message"])
@@ -143,6 +149,7 @@ class MainWindow(QMainWindow):
         self.events_group.setVisible(False)
         self.show_recent_events_checkbox.setChecked(False)
 
+        self.update_a1_toggle_button(None)
         self.set_connected_state(False)
         QTimer.singleShot(0, self.sync_window_height)
         self.connect_socket()
@@ -227,6 +234,12 @@ class MainWindow(QMainWindow):
                 self.send_message({"type": "get_status"})
                 self.request_events()
                 return
+            if action == "toggle_a1_power":
+                if payload.get("ok") is False:
+                    QMessageBox.warning(self, "A1 Toggle Failed", payload.get("error") or "Unknown backend error")
+                self.send_message({"type": "get_status"})
+                self.request_events()
+                return
             if action in ("set_iot_internet", "clear_errors"):
                 self.send_message({"type": "get_status"})
                 self.request_events()
@@ -288,8 +301,11 @@ class MainWindow(QMainWindow):
     def apply_status(self, payload: dict) -> None:
         relay = payload.get("relay", {})
         a1 = payload.get("relay_devices", {}).get("bambu_A1", {})
+        a1_power = payload.get("kasa", {}).get("a1_power", {})
         firewall = payload.get("firewall", {})
         system = payload.get("system", {})
+
+        self.update_a1_toggle_button(a1_power)
 
         relay_running = relay.get("running") is True
         tcp_8883_ok = a1.get("tcp_8883_ok") is True
@@ -300,7 +316,12 @@ class MainWindow(QMainWindow):
 
         relay_state = "green" if relay_running else "red"
 
-        if not relay_running:
+        if a1.get("powered_off") is True:
+            a1_state = "grey"
+            a1_status_text = "POWERED OFF"
+            self.set_na_label(self.a1_port_8883_value, "Not available")
+            self.set_na_label(self.a1_port_990_value, "Not available")
+        elif not relay_running:
             a1_state = "grey"
             a1_status_text = "N/A"
             self.set_na_label(self.a1_port_8883_value, "Not available")
@@ -489,6 +510,25 @@ class MainWindow(QMainWindow):
             label.setText("-")
             label.setStyleSheet("")
 
+    def update_a1_toggle_button(self, a1_power: dict | None) -> None:
+        if not a1_power:
+            self.A1_toggle_button.setText("A1 Power")
+            return
+        if a1_power.get("relay_on") is True:
+            self.A1_toggle_button.setText("A1 Power Off")
+        elif a1_power.get("relay_on") is False:
+            self.A1_toggle_button.setText("A1 Power On")
+        else:
+            self.A1_toggle_button.setText("A1 Power")
+
+    def format_event_message(self, event: dict) -> str:
+        message = str(event.get("message", "-"))
+        causes = event.get("causes")
+        if isinstance(causes, dict) and causes:
+            details = ", ".join(f"{key}: {value}" for key, value in causes.items())
+            return f"{message} ({details})"
+        return message
+
     def populate_events(self, events: list) -> None:
         self.events_table.setRowCount(0)
         recent = list(events)[-int(self.client_config["event_limit"]):]
@@ -497,7 +537,7 @@ class MainWindow(QMainWindow):
             self.events_table.insertRow(row_index)
             time_item = QTableWidgetItem(self.format_timestamp(event.get("ts")))
             kind_item = QTableWidgetItem(str(event.get("kind", "-")))
-            message_item = QTableWidgetItem(str(event.get("message", "-")))
+            message_item = QTableWidgetItem(self.format_event_message(event))
             self.events_table.setItem(row_index, 0, time_item)
             self.events_table.setItem(row_index, 1, kind_item)
             self.events_table.setItem(row_index, 2, message_item)
@@ -507,6 +547,7 @@ class MainWindow(QMainWindow):
         self.iot_on_button.setEnabled(connected)
         self.iot_off_button.setEnabled(connected)
         self.clear_errors_button.setEnabled(connected)
+        self.A1_toggle_button.setEnabled(connected)
 
     def on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         if reason in (
