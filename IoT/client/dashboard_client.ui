@@ -416,23 +416,30 @@
       </property>
       <layout class="QHBoxLayout" name="actions_layout">
        <item>
-        <widget class="QPushButton" name="run_diagnostics_button">
+        <widget class="QPushButton" name="A1_toggle_button">
          <property name="text">
-          <string>Run Diagnostics</string>
+          <string>A1 Toggle</string>
          </property>
         </widget>
        </item>
        <item>
         <widget class="QPushButton" name="iot_on_button">
          <property name="text">
-          <string>IoT ON</string>
+          <string>IoT Inet ON</string>
          </property>
         </widget>
        </item>
        <item>
         <widget class="QPushButton" name="iot_off_button">
          <property name="text">
-          <string>IoT OFF</string>
+          <string>IoT Inet OFF</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="run_diagnostics_button">
+         <property name="text">
+          <string>Run Diagnostics</string>
          </property>
         </widget>
        </item>
