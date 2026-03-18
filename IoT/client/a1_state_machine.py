@@ -36,7 +36,7 @@ class A1Inputs:
 
 
 class A1StateMachine:
-    def __init__(self, powerup_timeout_s: float = 12.0):
+    def __init__(self, powerup_timeout_s: float = 25.0):
         self.powerup_timeout_s = powerup_timeout_s
         self.power_on_ts = None
         self.state = A1State.DISCONNECTED
