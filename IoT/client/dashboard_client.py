@@ -212,8 +212,8 @@ class MainWindow(QMainWindow):
         self.request_events_timer.stop()
         self.ping_timer.stop()
         self.a1_ping_ok = None
-        self.a1_sm = A1StateMachine(self.cfg.get("a1_powerup_timeout_s", 25.0))
         self.last_a1_result = None
+        self.update_a1_toggle_button(None)
         self.alert_status_value_2.setText("No Alert")
         self.alert_detail_value_2.setText("-")
         self.evaluate_and_apply_overall_state(disconnected=True)
