@@ -1,11 +1,13 @@
 # dashboard_client.py
-# version: v2.2
-# date: 2026-03-18 08:34 GMT
+# version: v2.3
+# date: 2026-03-18 10:43 GMT
 import json
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
+from a1_state_machine import A1Inputs, A1State, A1StateMachine, TrayState
 from client_tests import ClientTests
 from PyQt6 import uic
 from PyQt6.QtCore import QTimer, QUrl, Qt
@@ -46,6 +48,7 @@ DEFAULT_CLIENT_CONFIG = {
     "cpu_temp_red": 75,
     "reconnect_interval_ms": 3000,
     "event_limit": 10,
+    "a1_powerup_timeout_s": 25.0,
 }
 
 
@@ -58,8 +61,10 @@ class MainWindow(QMainWindow):
         self.current_severity = "red"
         self.notified_red = False
         self.a1_ping_ok = None
-        self.a1_powered_off = None
-        self.a1_powering_up = False
+        self.a1_result = None
+        self.a1_sm = A1StateMachine(
+            powerup_timeout_s=float(self.client_config["a1_powerup_timeout_s"])
+        )
         self.allow_close = False
 
         self.socket = QWebSocket()
@@ -204,8 +209,10 @@ class MainWindow(QMainWindow):
         self.request_events_timer.stop()
         self.ping_timer.stop()
         self.a1_ping_ok = None
-        self.a1_powered_off = None
-        self.a1_powering_up = False
+        self.a1_result = None
+        self.a1_sm = A1StateMachine(
+            powerup_timeout_s=float(self.client_config["a1_powerup_timeout_s"])
+        )
         self.alert_status_value_2.setText("No Alert")
         self.alert_detail_value_2.setText("-")
         self.evaluate_and_apply_overall_state(disconnected=True)
@@ -304,97 +311,67 @@ class MainWindow(QMainWindow):
         )
         QMessageBox.information(self, "Diagnostics", text)
 
-    def update_a1_power_state(self, a1_power: dict | None) -> None:
-        powered_off = None if not a1_power else a1_power.get("powered_off")
-        if self.a1_powered_off is True and powered_off is False:
-            self.a1_powering_up = True
-        elif powered_off is True:
-            self.a1_powering_up = False
-        self.a1_powered_off = powered_off
-
-    def a1_available(self, relay_running: bool, ping_ok: bool, tcp_8883_ok: bool, tcp_990_ok: bool, relay_age, relay_timeout: float) -> bool:
-        return (
-            relay_running
-            and ping_ok
-            and tcp_8883_ok
-            and tcp_990_ok
-            and relay_age is not None
-            and relay_age <= relay_timeout
+    def build_a1_state_result(self, payload: dict):
+        relay = payload.get("relay", {})
+        a1 = payload.get("relay_devices", {}).get("bambu_A1", {})
+        a1_power = payload.get("kasa", {}).get("a1_power", {})
+        return self.a1_sm.update(
+            A1Inputs(
+                connected=self.socket.state() == QAbstractSocket.SocketState.ConnectedState,
+                plug_powered_off=a1_power.get("powered_off"),
+                relay_running=relay.get("running") is True,
+                ping_ok=self.a1_ping_ok is True,
+                tcp_8883_ok=a1.get("tcp_8883_ok") is True,
+                tcp_990_ok=a1.get("tcp_990_ok") is True,
+                relay_age=relay.get("seconds_since_last"),
+                relay_timeout_s=self.client_config["relay_packet_timeout_s"],
+                now=time.monotonic(),
+            )
         )
 
     def apply_status(self, payload: dict) -> None:
         relay = payload.get("relay", {})
         a1 = payload.get("relay_devices", {}).get("bambu_A1", {})
         a1_power = payload.get("kasa", {}).get("a1_power", {})
-        self.update_a1_power_state(a1_power)
         firewall = payload.get("firewall", {})
         system = payload.get("system", {})
 
         self.update_a1_toggle_button(a1_power)
+        self.a1_result = self.build_a1_state_result(payload)
 
         relay_running = relay.get("running") is True
-        tcp_8883_ok = a1.get("tcp_8883_ok") is True
-        tcp_990_ok = a1.get("tcp_990_ok") is True
         relay_age = relay.get("seconds_since_last")
-        relay_timeout = self.client_config["relay_packet_timeout_s"]
-        ping_ok = self.a1_ping_ok is True
-
         relay_state = "green" if relay_running else "red"
 
-        if a1_power.get("powered_off") is True:
-            a1_state = "grey"
-            a1_status_text = "A1 POWER OFF"
+        a1_state = self.a1_result["a1_state"]
+        a1_status_text = self.a1_result["text"]
+        local_alert = self.a1_result.get("alert_reason")
+
+        if a1_state in (A1State.POWER_OFF, A1State.POWERING_UP, A1State.UNAVAILABLE, A1State.DISCONNECTED):
+            a1_color = "grey"
             self.set_na_label(self.a1_port_8883_value, "Not available")
             self.set_na_label(self.a1_port_990_value, "Not available")
-        elif not relay_running:
-            a1_state = "grey"
-            a1_status_text = "N/A"
-            self.set_na_label(self.a1_port_8883_value, "Not available")
-            self.set_na_label(self.a1_port_990_value, "Not available")
-        elif tcp_8883_ok and tcp_990_ok and relay_age is not None and relay_age <= relay_timeout:
-            self.a1_powering_up = False
-            a1_state = "green"
-            a1_status_text = None
-            self.apply_bool_label(self.a1_port_8883_value, a1.get("tcp_8883_ok"), false_text="FAIL", true_text="OK")
-            self.apply_bool_label(self.a1_port_990_value, a1.get("tcp_990_ok"), false_text="FAIL", true_text="OK")
-        elif self.a1_powering_up:
-            a1_state = "grey"
-            a1_status_text = "A1 POWERING UP"
-            self.set_na_label(self.a1_port_8883_value, "Not available")
-            self.set_na_label(self.a1_port_990_value, "Not available")
-        elif not ping_ok:
-            a1_state = "grey"
-            a1_status_text = "OFFLINE"
-            self.set_na_label(self.a1_port_8883_value, "Not available")
-            self.set_na_label(self.a1_port_990_value, "Not available")
-        elif not tcp_8883_ok and not tcp_990_ok:
-            a1_state = "grey"
-            a1_status_text = "BOOTING"
-            self.set_na_label(self.a1_port_8883_value, "Not available")
-            self.set_na_label(self.a1_port_990_value, "Not available")
-        elif (tcp_8883_ok or tcp_990_ok) and relay_age is not None and relay_age > relay_timeout:
-            a1_state = "red"
-            a1_status_text = None
+        elif a1_state == A1State.AVAILABLE:
+            a1_color = "green"
             self.apply_bool_label(self.a1_port_8883_value, a1.get("tcp_8883_ok"), false_text="FAIL", true_text="OK")
             self.apply_bool_label(self.a1_port_990_value, a1.get("tcp_990_ok"), false_text="FAIL", true_text="OK")
         else:
-            a1_state = "grey"
-            a1_status_text = "N/A"
+            a1_color = "red"
             self.apply_bool_label(self.a1_port_8883_value, a1.get("tcp_8883_ok"), false_text="FAIL", true_text="OK")
             self.apply_bool_label(self.a1_port_990_value, a1.get("tcp_990_ok"), false_text="FAIL", true_text="OK")
 
         self.apply_state_label(self.relay_status_value, relay_state)
-        self.apply_state_label(self.a1_status_value, a1_state, a1_status_text)
+        self.apply_state_label(self.a1_status_value, a1_color, a1_status_text)
 
         self.relay_running_value.setText(self.text_for_bool(relay.get("running"), true_text="YES", false_text="NO"))
         self.relay_age_value.setText(self.text_or_dash(relay_age))
-        packets = relay.get("packets_total",0)
-        restarts = relay.get("restart_count",0)
+        packets = relay.get("packets_total", 0)
+        restarts = relay.get("restart_count", 0)
         self.relay_packets_value.setText(f"{packets} : {restarts}")
         self.relay_error_value.setText(relay.get("last_error") or "-")
 
         self.a1_last_check_value.setText(self.format_timestamp(a1.get("last_check_utc")))
-        self.a1_error_value.setText(a1.get("last_error") or "-")
+        self.a1_error_value.setText(local_alert or a1.get("last_error") or "-")
 
         temp_c = system.get("temp_c")
         if temp_c is None:
@@ -430,7 +407,7 @@ class MainWindow(QMainWindow):
         self.firewall_last_change_value.setText(self.format_timestamp(firewall.get("last_change_utc")))
         self.firewall_error_value.setText(firewall.get("last_error") or "-")
 
-        self.update_alert_panel(payload.get("events", []))
+        self.update_alert_panel(payload.get("events", []), self.a1_result)
         self.populate_events(payload.get("events", []))
 
         self.last_update_label.setText(
@@ -439,34 +416,28 @@ class MainWindow(QMainWindow):
         self.evaluate_and_apply_overall_state(disconnected=False)
 
     def evaluate_and_apply_overall_state(self, disconnected: bool) -> None:
-        if disconnected or self.last_status is None:
+        if disconnected or self.last_status is None or self.a1_result is None:
             severity = "red"
         else:
-            relay = self.last_status.get("relay", {})
-            a1 = self.last_status.get("relay_devices", {}).get("bambu_A1", {})
             firewall = self.last_status.get("firewall", {})
             system = self.last_status.get("system", {})
-
-            relay_running = relay.get("running") is True
-            tcp_8883_ok = a1.get("tcp_8883_ok") is True
-            tcp_990_ok = a1.get("tcp_990_ok") is True
-            relay_age = relay.get("seconds_since_last")
-            relay_timeout = self.client_config["relay_packet_timeout_s"]
             temp_c = system.get("temp_c")
-            ping_ok = self.a1_ping_ok is True
+            tray_state = self.a1_result["tray_state"]
 
-            if not relay_running:
-                severity = "red"
-            elif ping_ok and (tcp_8883_ok or tcp_990_ok) and relay_age is not None and relay_age > relay_timeout:
-                severity = "red"
-            elif relay.get("last_error") or a1.get("last_error") or firewall.get("last_error") or system.get("last_error"):
+            if firewall.get("last_error") or system.get("last_error"):
                 severity = "red"
             elif temp_c is not None and temp_c > self.client_config["cpu_temp_red"]:
+                severity = "red"
+            elif tray_state == TrayState.ALERT:
                 severity = "red"
             elif firewall.get("iot_internet_enabled") is True:
                 severity = "warning"
             elif temp_c is not None and temp_c > self.client_config["cpu_temp_warning"]:
                 severity = "warning"
+            elif tray_state == TrayState.WARNING:
+                severity = "warning"
+            elif tray_state == TrayState.DISCONNECTED:
+                severity = "red"
             else:
                 severity = "green"
 
@@ -507,13 +478,13 @@ class MainWindow(QMainWindow):
                 "padding: 4px 8px; border-radius: 4px;"
             )
         elif state == "grey":
-            label.setText("N/A")
+            label.setText(text)
             label.setStyleSheet(
                 f"background-color: {COLOR_NA}; color: white; font-weight: 700; "
                 "padding: 4px 8px; border-radius: 4px;"
             )
         else:
-            label.setText("RED")
+            label.setText(text)
             label.setStyleSheet(
                 f"background-color: {COLOR_ERR}; color: white; font-weight: 700; "
                 "padding: 4px 8px; border-radius: 4px;"
@@ -561,22 +532,25 @@ class MainWindow(QMainWindow):
             return f"{message} ({details})"
         return message
 
-    def update_alert_panel(self, events: list) -> None:
+    def update_alert_panel(self, events: list, a1_result=None) -> None:
         status_text = "No Alert"
         detail_text = "-"
-        for event in reversed(list(events)):
-            message = str(event.get("message", ""))
-            print("wha alert:", message)
-            if message == "Alert active":
-                status_text = "Alert Active"
-                causes = event.get("causes")
-                if isinstance(causes, dict) and causes:
-                    detail_text = ", ".join(f"{key}: {value}" for key, value in causes.items())
-                else:
-                    detail_text = self.format_event_message(event)
-                break
-            if message == "Alert cleared":
-                break
+        if a1_result is not None and a1_result.get("a1_state") == A1State.FAULT:
+            status_text = "Alert Active"
+            detail_text = a1_result.get("alert_reason") or "Partial A1 response"
+        else:
+            for event in reversed(list(events)):
+                message = str(event.get("message", ""))
+                if message == "Alert active":
+                    status_text = "Alert Active"
+                    causes = event.get("causes")
+                    if isinstance(causes, dict) and causes:
+                        detail_text = ", ".join(f"{key}: {value}" for key, value in causes.items())
+                    else:
+                        detail_text = self.format_event_message(event)
+                    break
+                if message == "Alert cleared":
+                    break
         self.alert_status_value_2.setText(status_text)
         self.alert_detail_value_2.setText(detail_text)
 

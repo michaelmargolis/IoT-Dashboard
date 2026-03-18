@@ -1,9 +1,10 @@
 # a1_state_machine.py
-# version: v1.0
-# date: 2026-03-18 10:08 GMT
+# version: v1.1
+# date: 2026-03-18 10:43 GMT
 
 from dataclasses import dataclass
 from enum import Enum, auto
+
 
 class A1State(Enum):
     DISCONNECTED = auto()
@@ -13,11 +14,13 @@ class A1State(Enum):
     UNAVAILABLE = auto()
     FAULT = auto()
 
+
 class TrayState(Enum):
     DISCONNECTED = auto()
     NORMAL = auto()
     WARNING = auto()
     ALERT = auto()
+
 
 @dataclass
 class A1Inputs:
@@ -31,74 +34,84 @@ class A1Inputs:
     relay_timeout_s: float
     now: float
 
+
 class A1StateMachine:
     def __init__(self, powerup_timeout_s: float = 12.0):
         self.powerup_timeout_s = powerup_timeout_s
-        self.prev_plug_off = None
         self.power_on_ts = None
         self.state = A1State.DISCONNECTED
 
-    def update(self, i: A1Inputs):
-        if self.prev_plug_off is True and i.plug_powered_off is False:
-            self.power_on_ts = i.now
-        self.prev_plug_off = i.plug_powered_off
+    def update(self, inputs: A1Inputs):
+        if inputs.plug_powered_off is True:
+            self.power_on_ts = None
+        elif inputs.plug_powered_off is False and self.power_on_ts is None:
+            self.power_on_ts = inputs.now
 
-        elapsed = None
-        if self.power_on_ts is not None:
-            elapsed = i.now - self.power_on_ts
-
-        all_ok = (
-            i.relay_running and
-            i.ping_ok and
-            i.tcp_8883_ok and
-            i.tcp_990_ok and
-            i.relay_age is not None and
-            i.relay_age <= i.relay_timeout_s
+        elapsed = None if self.power_on_ts is None else inputs.now - self.power_on_ts
+        relay_recent = (
+            inputs.relay_running
+            and inputs.relay_age is not None
+            and inputs.relay_age <= inputs.relay_timeout_s
         )
+        all_ok = relay_recent and inputs.ping_ok and inputs.tcp_8883_ok and inputs.tcp_990_ok
+        any_signal = inputs.ping_ok or inputs.tcp_8883_ok or inputs.tcp_990_ok
 
-        any_signal = i.ping_ok or i.tcp_8883_ok or i.tcp_990_ok
-
-        if not i.connected:
-            self.state = A1State.DISCONNECTED
-        elif i.plug_powered_off is True:
-            self.state = A1State.POWER_OFF
+        if not inputs.connected:
+            state = A1State.DISCONNECTED
+        elif inputs.plug_powered_off is True:
+            state = A1State.POWER_OFF
         elif all_ok:
-            self.state = A1State.AVAILABLE
-        elif i.plug_powered_off is False and elapsed is not None and elapsed < self.powerup_timeout_s:
-            self.state = A1State.POWERING_UP
-        elif i.plug_powered_off is False and elapsed is not None and elapsed >= self.powerup_timeout_s:
-            if any_signal:
-                self.state = A1State.FAULT
-            else:
-                self.state = A1State.UNAVAILABLE
+            state = A1State.AVAILABLE
+        elif inputs.plug_powered_off is False and elapsed is not None and elapsed < self.powerup_timeout_s:
+            state = A1State.POWERING_UP
+        elif inputs.plug_powered_off is False and elapsed is not None and elapsed >= self.powerup_timeout_s:
+            state = A1State.FAULT if any_signal else A1State.UNAVAILABLE
         else:
-            self.state = A1State.UNAVAILABLE
+            state = A1State.UNAVAILABLE
+
+        self.state = state
 
         return {
-            "a1_state": self.state,
-            "tray_state": self._map_tray(self.state),
-            "text": self._text(self.state)
+            "a1_state": state,
+            "tray_state": self._map_tray(state),
+            "text": self._text(state),
+            "alert_reason": self._alert_reason(state, inputs),
         }
 
-    def _map_tray(self, s):
-        if s == A1State.DISCONNECTED:
+    def _map_tray(self, state: A1State) -> TrayState:
+        if state == A1State.DISCONNECTED:
             return TrayState.DISCONNECTED
-        if s == A1State.POWER_OFF:
+        if state == A1State.POWER_OFF:
             return TrayState.NORMAL
-        if s == A1State.POWERING_UP:
+        if state == A1State.POWERING_UP:
             return TrayState.WARNING
-        if s == A1State.AVAILABLE:
+        if state == A1State.AVAILABLE:
             return TrayState.NORMAL
-        if s == A1State.UNAVAILABLE:
+        if state == A1State.UNAVAILABLE:
             return TrayState.WARNING
-        if s == A1State.FAULT:
-            return TrayState.ALERT
+        return TrayState.ALERT
 
-    def _text(self, s):
-        if s == A1State.POWER_OFF:
+    def _text(self, state: A1State) -> str | None:
+        if state == A1State.POWER_OFF:
             return "A1 Power Off"
-        if s == A1State.POWERING_UP:
+        if state == A1State.POWERING_UP:
             return "A1 Powering Up"
-        if s == A1State.AVAILABLE:
+        if state == A1State.AVAILABLE:
             return "A1 Available"
+        if state == A1State.UNAVAILABLE:
+            return "OFFLINE"
+        if state == A1State.FAULT:
+            return "FAULT"
         return None
+
+    def _alert_reason(self, state: A1State, inputs: A1Inputs) -> str | None:
+        if state != A1State.FAULT:
+            return None
+        parts = []
+        if not inputs.ping_ok:
+            parts.append("Ping FAIL")
+        if not inputs.tcp_8883_ok:
+            parts.append("TCP 8883 FAIL")
+        if not inputs.tcp_990_ok:
+            parts.append("TCP 990 FAIL")
+        return ", ".join(parts) if parts else "Partial A1 response"
