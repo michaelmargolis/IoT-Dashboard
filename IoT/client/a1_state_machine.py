@@ -1,6 +1,5 @@
 # a1_state_machine.py
-# version: v1.2
-# date: 2026-03-18 11:15 GMT
+# version: v1.326-03-18 18:46 GMT
 
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -74,8 +73,9 @@ class A1StateMachine:
         return {
             "a1_state": state,
             "tray_state": self._map_tray(state),
-            "text": self._text(state),
+            "text": self._text(state, elapsed),
             "alert_reason": self._alert_reason(state, inputs),
+            "powerup_elapsed_s": elapsed,
         }
 
     def _map_tray(self, state: A1State) -> TrayState:
@@ -91,11 +91,12 @@ class A1StateMachine:
             return TrayState.WARNING
         return TrayState.ALERT
 
-    def _text(self, state: A1State) -> str | None:
+    def _text(self, state: A1State, elapsed: float | None = None) -> str | None:
         if state == A1State.POWER_OFF:
             return "A1 Power Off"
         if state == A1State.POWERING_UP:
-            return "A1 Powering Up"
+            seconds = int(elapsed) if elapsed is not None else 0
+            return f"A1 Powering Up {seconds}s"
         if state == A1State.AVAILABLE:
             return "A1 Available"
         if state == A1State.UNAVAILABLE:

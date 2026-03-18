@@ -1,6 +1,5 @@
 # dashboard_client.py
-# version: v2.5
-# date: 2026-03-18 13:55 GMT
+# version: v2.626-03-18 18:46 GMT
 import json
 import sys
 import time
@@ -130,6 +129,7 @@ class MainWindow(QMainWindow):
             lambda: self.send_message({"type": "toggle_a1_power"})
         )
         self.show_recent_events_checkbox.toggled.connect(self.on_toggle_events)
+        self.print_events_button.clicked.connect(self.print_recent_events)
 
         self.events_table.setHorizontalHeaderLabels(["Time", "Kind", "Message"])
         self.events_table.verticalHeader().setVisible(False)
@@ -346,8 +346,12 @@ class MainWindow(QMainWindow):
 
         relay_state = "green" if relay_running else "red"
 
-        if a1_state_enum in (A1State.POWER_OFF, A1State.POWERING_UP, A1State.DISCONNECTED, A1State.UNAVAILABLE):
+        if a1_state_enum in (A1State.POWER_OFF, A1State.DISCONNECTED, A1State.UNAVAILABLE):
             a1_state = "grey"
+            self.set_na_label(self.a1_port_8883_value, "Not available")
+            self.set_na_label(self.a1_port_990_value, "Not available")
+        elif a1_state_enum == A1State.POWERING_UP:
+            a1_state = "warning"
             self.set_na_label(self.a1_port_8883_value, "Not available")
             self.set_na_label(self.a1_port_990_value, "Not available")
         elif a1_state_enum == A1State.AVAILABLE:
@@ -561,6 +565,20 @@ class MainWindow(QMainWindow):
                 continue
             filtered.append(event)
         return filtered
+
+    def print_recent_events(self) -> None:
+        if self.last_status is None:
+            print("No events available", flush=True)
+            return
+        recent = self.filter_events(list(self.last_status.get("events", [])))[-int(self.client_config["event_limit"]):]
+        print("Recent events:", flush=True)
+        for event in reversed(recent):
+            print(
+                f"{self.format_timestamp(event.get('ts'))} | "
+                f"{event.get('kind', '-')} | "
+                f"{self.format_event_message(event)}",
+                flush=True
+            )
 
     def copy_selected_events(self) -> None:
         rows = sorted({index.row() for index in self.events_table.selectionModel().selectedRows()})

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- dashboard_client.ui | version: v2.6 | date: 2026-03-18 18:46 GMT -->
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -472,14 +473,38 @@
      </widget>
     </item>
     <item>
-     <widget class="QCheckBox" name="show_recent_events_checkbox">
-      <property name="text">
-       <string>Show recent events</string>
-      </property>
-      <property name="checked">
-       <bool>false</bool>
-      </property>
-     </widget>
+     <layout class="QHBoxLayout" name="events_controls_layout">
+      <item>
+       <widget class="QCheckBox" name="show_recent_events_checkbox">
+        <property name="text">
+         <string>Show recent events</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="events_controls_spacer">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="print_events_button">
+        <property name="text">
+         <string>Print Events</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </item>
     <item>
      <widget class="QGroupBox" name="events_group">
