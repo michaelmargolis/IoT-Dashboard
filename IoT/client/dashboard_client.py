@@ -1,6 +1,6 @@
 # dashboard_client.py
-# version: v2.3
-# date: 2026-03-18 11:15 GMT
+# version: v2.5
+# date: 2026-03-18 13:55 GMT
 import json
 import sys
 import time
@@ -48,6 +48,7 @@ DEFAULT_CLIENT_CONFIG = {
     "cpu_temp_red": 75,
     "reconnect_interval_ms": 3000,
     "event_limit": 10,
+    "a1_powerup_timeout_s": 25.0,
 }
 
 
@@ -60,7 +61,7 @@ class MainWindow(QMainWindow):
         self.current_severity = "red"
         self.notified_red = False
         self.a1_ping_ok = None
-        self.a1_sm = A1StateMachine()
+        self.a1_sm = A1StateMachine(self.client_config.get("a1_powerup_timeout_s", 25.0))
         self.last_a1_result = None
         self.allow_close = False
 
@@ -211,7 +212,7 @@ class MainWindow(QMainWindow):
         self.request_events_timer.stop()
         self.ping_timer.stop()
         self.a1_ping_ok = None
-        self.a1_sm = A1StateMachine()
+        self.a1_sm = A1StateMachine(self.cfg.get("a1_powerup_timeout_s", 25.0))
         self.last_a1_result = None
         self.alert_status_value_2.setText("No Alert")
         self.alert_detail_value_2.setText("-")
@@ -365,7 +366,7 @@ class MainWindow(QMainWindow):
         self.relay_age_value.setText(self.text_or_dash(relay_age))
         packets = relay.get("packets_total",0)
         restarts = relay.get("restart_count",0)
-        self.relay_packets_value.setText(f"{{packets}} : {{restarts}}")
+        self.relay_packets_value.setText(f"{packets} : {restarts}")
         self.relay_error_value.setText(relay.get("last_error") or "-")
 
         self.a1_last_check_value.setText(self.format_timestamp(a1.get("last_check_utc")))
@@ -376,7 +377,7 @@ class MainWindow(QMainWindow):
             self.temp_value.setText("-")
             self.temp_value.setStyleSheet("")
         else:
-            self.temp_value.setText(f"{{temp_c:.1f}} C")
+            self.temp_value.setText(f"{temp_c:.1f} C")
             if temp_c > self.client_config["cpu_temp_red"]:
                 self.temp_value.setStyleSheet("color: #c62828; font-weight: 700;")
             elif temp_c > self.client_config["cpu_temp_warning"]:
@@ -386,7 +387,7 @@ class MainWindow(QMainWindow):
 
         loadavg = system.get("loadavg")
         if isinstance(loadavg, list) and len(loadavg) == 3:
-            self.loadavg_value.setText(f"{{loadavg[0]:.2f}} {{loadavg[1]:.2f}} {{loadavg[2]:.2f}}")
+            self.loadavg_value.setText(f"{loadavg[0]:.2f} {loadavg[1]:.2f} {loadavg[2]:.2f}")
         else:
             self.loadavg_value.setText("-")
 
@@ -409,7 +410,7 @@ class MainWindow(QMainWindow):
         self.populate_events(payload.get("events", []))
 
         self.last_update_label.setText(
-            f"Updated: {{self.format_timestamp(payload.get('ts'))}}"
+            f"Updated: {self.format_timestamp(payload.get('ts'))}"
         )
         self.evaluate_and_apply_overall_state(disconnected=False)
 
@@ -544,7 +545,7 @@ class MainWindow(QMainWindow):
                     status_text = "Alert Active"
                     causes = event.get("causes")
                     if isinstance(causes, dict) and causes:
-                        detail_text = ", ".join(f"{{key}}: {{value}}" for key, value in causes.items())
+                        detail_text = ", ".join(f"{key}: {value}" for key, value in causes.items())
                     else:
                         detail_text = self.format_event_message(event)
                     break
@@ -572,8 +573,7 @@ class MainWindow(QMainWindow):
                 item = self.events_table.item(row, col)
                 values.append(item.text() if item is not None else "")
             lines.append("	".join(values))
-        QApplication.clipboard().setText("
-".join(lines))
+        QApplication.clipboard().setText("\n".join(lines))
 
     def populate_events(self, events: list) -> None:
         self.events_table.setRowCount(0)
