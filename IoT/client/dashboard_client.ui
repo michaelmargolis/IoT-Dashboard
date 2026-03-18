@@ -7,29 +7,14 @@
     <x>0</x>
     <y>0</y>
     <width>640</width>
-    <height>500</height>
+    <height>652</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>IoT Dashboard</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="root_layout">
-    <property name="spacing">
-     <number>8</number>
-    </property>
-    <property name="leftMargin">
-     <number>10</number>
-    </property>
-    <property name="topMargin">
-     <number>10</number>
-    </property>
-    <property name="rightMargin">
-     <number>10</number>
-    </property>
-    <property name="bottomMargin">
-     <number>10</number>
-    </property>
+   <layout class="QVBoxLayout" name="verticalLayout">
     <item>
      <widget class="QFrame" name="status_strip_frame">
       <property name="sizePolicy">
@@ -38,10 +23,7 @@
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
-      <layout class="QHBoxLayout" name="status_strip">
-       <property name="spacing">
-        <number>10</number>
-       </property>
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
        <item>
         <widget class="QLabel" name="label_status_caption">
          <property name="text">
@@ -133,7 +115,7 @@
       <property name="title">
        <string>Relay and A1 Printer</string>
       </property>
-      <layout class="QGridLayout" name="relay_layout">
+      <layout class="QGridLayout" name="gridLayout">
        <item row="0" column="0">
         <widget class="QLabel" name="label_relay_status">
          <property name="text">
@@ -278,130 +260,126 @@
      </widget>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="mid_row">
-      <item>
-       <widget class="QGroupBox" name="pi_group">
-        <property name="title">
-         <string>Pi Health</string>
-        </property>
-        <layout class="QGridLayout" name="pi_layout">
-         <item row="0" column="0">
-          <widget class="QLabel" name="label_pi_0">
-           <property name="text">
-            <string>Temperature</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="QLabel" name="temp_value">
-           <property name="text">
-            <string>-</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="label_pi_1">
-           <property name="text">
-            <string>Load average</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="QLabel" name="loadavg_value">
-           <property name="text">
-            <string>-</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="label_pi_2">
-           <property name="text">
-            <string>Uptime</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="1">
-          <widget class="QLabel" name="uptime_value">
-           <property name="text">
-            <string>-</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="QLabel" name="label_pi_3">
-           <property name="text">
-            <string>System error</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="1">
-          <widget class="QLabel" name="system_error_value">
-           <property name="text">
-            <string>-</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-      <item>
-       <widget class="QGroupBox" name="firewall_group">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="title">
-         <string>Firewall / Internet</string>
-        </property>
-        <layout class="QGridLayout" name="firewall_layout">
-         <item row="0" column="0">
-          <widget class="QLabel" name="label_fw_0">
-           <property name="text">
-            <string>IoT Internet</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="QLabel" name="iot_internet_value">
-           <property name="text">
-            <string>-</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="label_fw_1">
-           <property name="text">
-            <string>Last change</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="QLabel" name="firewall_last_change_value">
-           <property name="text">
-            <string>-</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="label_fw_2">
-           <property name="text">
-            <string>Firewall error</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="1">
-          <widget class="QLabel" name="firewall_error_value">
-           <property name="text">
-            <string>-</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-     </layout>
+     <widget class="QGroupBox" name="pi_group">
+      <property name="title">
+       <string>Pi Health</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout_3">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_pi_0">
+         <property name="text">
+          <string>Temperature</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLabel" name="temp_value">
+         <property name="text">
+          <string>-</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_pi_1">
+         <property name="text">
+          <string>Load average</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLabel" name="loadavg_value">
+         <property name="text">
+          <string>-</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_pi_2">
+         <property name="text">
+          <string>Uptime</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QLabel" name="uptime_value">
+         <property name="text">
+          <string>-</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_pi_3">
+         <property name="text">
+          <string>System error</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QLabel" name="system_error_value">
+         <property name="text">
+          <string>-</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="firewall_group">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="title">
+       <string>Firewall / Internet</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_fw_0">
+         <property name="text">
+          <string>IoT Internet</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLabel" name="iot_internet_value">
+         <property name="text">
+          <string>-</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_fw_1">
+         <property name="text">
+          <string>Last change</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLabel" name="firewall_last_change_value">
+         <property name="text">
+          <string>-</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_fw_2">
+         <property name="text">
+          <string>Firewall error</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QLabel" name="firewall_error_value">
+         <property name="text">
+          <string>-</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
     </item>
     <item>
      <widget class="QGroupBox" name="actions_group">
@@ -414,7 +392,7 @@
       <property name="title">
        <string>Actions</string>
       </property>
-      <layout class="QHBoxLayout" name="actions_layout">
+      <layout class="QHBoxLayout" name="horizontalLayout">
        <item>
         <widget class="QPushButton" name="A1_toggle_button">
          <property name="text">
@@ -454,6 +432,46 @@
      </widget>
     </item>
     <item>
+     <widget class="QGroupBox" name="alert_group">
+      <property name="title">
+       <string>Alert</string>
+      </property>
+      <layout class="QGridLayout" name="alert_layout_2">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_alert_status_2">
+         <property name="text">
+          <string>Status</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLabel" name="alert_status_value_2">
+         <property name="text">
+          <string>No Alert</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_alert_detail_2">
+         <property name="text">
+          <string>Detail</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLabel" name="alert_detail_value_2">
+         <property name="text">
+          <string>-</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
      <widget class="QCheckBox" name="show_recent_events_checkbox">
       <property name="text">
        <string>Show recent events</string>
@@ -468,7 +486,7 @@
       <property name="title">
        <string>Recent Events</string>
       </property>
-      <layout class="QVBoxLayout" name="events_layout">
+      <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
         <widget class="QTableWidget" name="events_table">
          <property name="rowCount">

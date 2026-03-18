@@ -1,6 +1,6 @@
 # dashboard_client.py
-# version: v2.0
-# date: 2026-03-17 19:50 GMT
+# version: v2.1
+# date: 2026-03-17 22:16 GMT
 import json
 import sys
 from datetime import datetime
@@ -58,6 +58,8 @@ class MainWindow(QMainWindow):
         self.current_severity = "red"
         self.notified_red = False
         self.a1_ping_ok = None
+        self.a1_powered_off = None
+        self.a1_powering_up = False
         self.allow_close = False
 
         self.socket = QWebSocket()
@@ -202,6 +204,8 @@ class MainWindow(QMainWindow):
         self.request_events_timer.stop()
         self.ping_timer.stop()
         self.a1_ping_ok = None
+        self.a1_powered_off = None
+        self.a1_powering_up = False
         self.evaluate_and_apply_overall_state(disconnected=True)
         if not self.reconnect_timer.isActive():
             self.reconnect_timer.start()
@@ -298,10 +302,29 @@ class MainWindow(QMainWindow):
         )
         QMessageBox.information(self, "Diagnostics", text)
 
+    def update_a1_power_state(self, a1_power: dict | None) -> None:
+        powered_off = None if not a1_power else a1_power.get("powered_off")
+        if self.a1_powered_off is True and powered_off is False:
+            self.a1_powering_up = True
+        elif powered_off is True:
+            self.a1_powering_up = False
+        self.a1_powered_off = powered_off
+
+    def a1_available(self, relay_running: bool, ping_ok: bool, tcp_8883_ok: bool, tcp_990_ok: bool, relay_age, relay_timeout: float) -> bool:
+        return (
+            relay_running
+            and ping_ok
+            and tcp_8883_ok
+            and tcp_990_ok
+            and relay_age is not None
+            and relay_age <= relay_timeout
+        )
+
     def apply_status(self, payload: dict) -> None:
         relay = payload.get("relay", {})
         a1 = payload.get("relay_devices", {}).get("bambu_A1", {})
         a1_power = payload.get("kasa", {}).get("a1_power", {})
+        self.update_a1_power_state(a1_power)
         firewall = payload.get("firewall", {})
         system = payload.get("system", {})
 
@@ -318,7 +341,7 @@ class MainWindow(QMainWindow):
 
         if a1.get("powered_off") is True:
             a1_state = "grey"
-            a1_status_text = "POWERED OFF"
+            a1_status_text = "A1 POWER OFF"
             self.set_na_label(self.a1_port_8883_value, "Not available")
             self.set_na_label(self.a1_port_990_value, "Not available")
         elif not relay_running:
@@ -332,10 +355,16 @@ class MainWindow(QMainWindow):
             self.set_na_label(self.a1_port_8883_value, "Not available")
             self.set_na_label(self.a1_port_990_value, "Not available")
         elif tcp_8883_ok and tcp_990_ok and relay_age is not None and relay_age <= relay_timeout:
+            self.a1_powering_up = False
             a1_state = "green"
             a1_status_text = None
             self.apply_bool_label(self.a1_port_8883_value, a1.get("tcp_8883_ok"), false_text="FAIL", true_text="OK")
             self.apply_bool_label(self.a1_port_990_value, a1.get("tcp_990_ok"), false_text="FAIL", true_text="OK")
+        elif self.a1_powering_up:
+            a1_state = "grey"
+            a1_status_text = "A1 POWERING UP"
+            self.set_na_label(self.a1_port_8883_value, "Not available")
+            self.set_na_label(self.a1_port_990_value, "Not available")
         elif not tcp_8883_ok and not tcp_990_ok:
             a1_state = "grey"
             a1_status_text = "BOOTING"
