@@ -1,6 +1,6 @@
 # dashboard_client.py
-# version: v2.1
-# date: 2026-03-17 22:16 GMT
+# version: v2.2
+# date: 2026-03-18 08:34 GMT
 import json
 import sys
 from datetime import datetime
@@ -206,6 +206,8 @@ class MainWindow(QMainWindow):
         self.a1_ping_ok = None
         self.a1_powered_off = None
         self.a1_powering_up = False
+        self.alert_status_value_2.setText("No Alert")
+        self.alert_detail_value_2.setText("-")
         self.evaluate_and_apply_overall_state(disconnected=True)
         if not self.reconnect_timer.isActive():
             self.reconnect_timer.start()
@@ -339,7 +341,7 @@ class MainWindow(QMainWindow):
 
         relay_state = "green" if relay_running else "red"
 
-        if a1.get("powered_off") is True:
+        if a1_power.get("powered_off") is True:
             a1_state = "grey"
             a1_status_text = "A1 POWER OFF"
             self.set_na_label(self.a1_port_8883_value, "Not available")
@@ -347,11 +349,6 @@ class MainWindow(QMainWindow):
         elif not relay_running:
             a1_state = "grey"
             a1_status_text = "N/A"
-            self.set_na_label(self.a1_port_8883_value, "Not available")
-            self.set_na_label(self.a1_port_990_value, "Not available")
-        elif not ping_ok:
-            a1_state = "grey"
-            a1_status_text = "OFFLINE"
             self.set_na_label(self.a1_port_8883_value, "Not available")
             self.set_na_label(self.a1_port_990_value, "Not available")
         elif tcp_8883_ok and tcp_990_ok and relay_age is not None and relay_age <= relay_timeout:
@@ -363,6 +360,11 @@ class MainWindow(QMainWindow):
         elif self.a1_powering_up:
             a1_state = "grey"
             a1_status_text = "A1 POWERING UP"
+            self.set_na_label(self.a1_port_8883_value, "Not available")
+            self.set_na_label(self.a1_port_990_value, "Not available")
+        elif not ping_ok:
+            a1_state = "grey"
+            a1_status_text = "OFFLINE"
             self.set_na_label(self.a1_port_8883_value, "Not available")
             self.set_na_label(self.a1_port_990_value, "Not available")
         elif not tcp_8883_ok and not tcp_990_ok:
@@ -428,6 +430,7 @@ class MainWindow(QMainWindow):
         self.firewall_last_change_value.setText(self.format_timestamp(firewall.get("last_change_utc")))
         self.firewall_error_value.setText(firewall.get("last_error") or "-")
 
+        self.update_alert_panel(payload.get("events", []))
         self.populate_events(payload.get("events", []))
 
         self.last_update_label.setText(
@@ -557,6 +560,25 @@ class MainWindow(QMainWindow):
             details = ", ".join(f"{key}: {value}" for key, value in causes.items())
             return f"{message} ({details})"
         return message
+
+    def update_alert_panel(self, events: list) -> None:
+        status_text = "No Alert"
+        detail_text = "-"
+        for event in reversed(list(events)):
+            message = str(event.get("message", ""))
+            print("wha alert:", message)
+            if message == "Alert active":
+                status_text = "Alert Active"
+                causes = event.get("causes")
+                if isinstance(causes, dict) and causes:
+                    detail_text = ", ".join(f"{key}: {value}" for key, value in causes.items())
+                else:
+                    detail_text = self.format_event_message(event)
+                break
+            if message == "Alert cleared":
+                break
+        self.alert_status_value_2.setText(status_text)
+        self.alert_detail_value_2.setText(detail_text)
 
     def populate_events(self, events: list) -> None:
         self.events_table.setRowCount(0)
