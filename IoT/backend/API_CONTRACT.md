@@ -1,4 +1,6 @@
 # IoT Backend WebSocket API Contract
+# WebSocket API summary for the main IoT backend.
+# Defines the supported request types and the shape of status and reply messages.
 
 Transport:
 - WebSocket

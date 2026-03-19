@@ -1,6 +1,9 @@
 # a1_state_machine.py
 # version: v1.326-03-18 18:46 GMT
 
+# State machine for deriving user-facing A1 printer status from backend signals.
+# Converts connectivity, relay, and power inputs into dashboard and tray states.
+
 from dataclasses import dataclass
 from enum import Enum, auto
 

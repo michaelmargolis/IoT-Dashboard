@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# Lightweight Kasa local-protocol helpers.
+# Handles UDP packet encoding/decoding and builds discovery, relay, sysinfo, and energy requests.
+
 from __future__ import annotations
 import json
 from typing import Dict, Any

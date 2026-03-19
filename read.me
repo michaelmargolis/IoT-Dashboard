@@ -1,0 +1,137 @@
+## IoT Dashboard & Gateway Backend
+
+This project provides a secure, extensible system for controlling and monitoring IoT devices on an isolated subnet using a Raspberry Pi gateway and a PyQt dashboard client.
+
+---
+
+## Overview
+
+The system is built around a **dual-subnet architecture**:
+
+- **LAN (192.168.1.x)** — trusted network (master PC runs dashboard)
+- **IoT subnet** — isolated devices (printer, smartplugs, microcontrollers)
+
+A Raspberry Pi acts as:
+
+- Network gateway
+- Firewall (nftables)
+- Backend server (WebSocket API)
+- Device relay and controller
+
+---
+
+## Key Features
+
+- Secure IoT isolation with controlled access
+- Bambu A1 printer discovery relay across subnets
+- Smartplug (Kasa) discovery and control
+- WebSocket-based backend API
+- PyQt dashboard with tray integration
+- Event logging and diagnostics
+- Modular architecture for future devices
+
+---
+
+## Architecture
+
+Master PC (Dashboard)
+│
+│ WebSocket
+▼
+Raspberry Pi (Gateway / Backend)
+├── WebSocket Server
+├── Bambu Relay (SSDP)
+├── Kasa Module (UDP 9999)
+├── Firewall Control (nftables)
+└── Diagnostics
+
+    │
+    ▼
+
+IoT Subnet Devices
+├── Bambu A1 Printer
+├── Kasa Smartplugs
+└── ESP32 / Pico devices
+
+
+---
+
+## Repository Structure
+
+### IoT Backend
+
+| File | Purpose |
+|------|--------|
+| `backend/backend_server.py` | Main backend server: relay, diagnostics, firewall control, WebSocket API |
+| `backend/config.json` | Backend runtime configuration |
+| `backend/API_CONTRACT.md` | WebSocket API description |
+
+---
+
+### IoT Dashboard Client
+
+| File | Purpose |
+|------|--------|
+| `client/dashboard_client.py` | PyQt dashboard client |
+| `client/dashboard_client.ui` | UI layout |
+| `client/a1_state_machine.py` | A1 printer state interpretation logic |
+| `client/client_config.json` | Client configuration |
+| `client/client_tests.py` | Basic connectivity tests |
+
+---
+
+### Kasa Prototype Backend
+
+| File | Purpose |
+|------|--------|
+| `Kasa/backend/kasa_backend_server.py` | Standalone Kasa backend server |
+| `Kasa/backend/kasa_manager.py` | Kasa device discovery and control |
+| `Kasa/backend/kasa_protocol.py` | UDP encoding/decoding for Kasa protocol |
+| `Kasa/backend/kasa_config.json` | Kasa backend configuration |
+| `Kasa/backend/kasa-prototype.service` | systemd service file |
+
+---
+
+### Kasa Prototype Client
+
+| File | Purpose |
+|------|--------|
+| `Kasa/client/kasa_client_qt_v2.py` | PyQt test client for Kasa backend |
+| `Kasa/client/kasa_client_qt_v2.ui` | UI layout |
+| `Kasa/client/API_CONTRACT.md` | Kasa backend API |
+
+---
+
+## How It Works
+
+### 1. Backend
+
+The backend maintains system state and exposes it via WebSocket:
+
+- Relay state (printer discovery)
+- Firewall state
+- Device states (Kasa, etc.)
+- Diagnostics and events
+
+### 2. Relay
+
+The Bambu printer sends SSDP discovery on the IoT subnet.
+
+The backend:
+- listens on IoT interface
+- rebroadcasts to LAN
+- allows Bambu Studio to detect the printer
+
+### 3. Kasa Devices
+
+- Discovered via UDP broadcast (port 9999)
+- Controlled via encrypted local protocol
+- Cached in backend for fast access
+
+### 4. Dashboard
+
+- Connects via WebSocket
+- Displays backend state
+- Sends control commands (toggle internet, power, etc.)
+
+---

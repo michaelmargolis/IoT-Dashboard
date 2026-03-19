@@ -2,6 +2,11 @@
 # backend_server.py
 # version: v2.3
 # date: 2026-03-16 08:58 GMT
+
+# Main IoT backend server for the private and IoT subnets.
+# Publishes backend status over WebSocket and handles firewall control, diagnostics,
+# Bambu discovery relay, and A1 smartplug power integration via the Kasa backend.
+
 from __future__ import annotations
 import argparse, asyncio, collections, dataclasses, json, socket, subprocess, time, os
 from pathlib import Path

@@ -2,6 +2,11 @@
 # kasa_backend_server.py
 # version: v2.5
 # date: 2026-03-16 20:46 GMT
+
+# Standalone WebSocket backend for Kasa device prototyping.
+# Hosts the Kasa manager, publishes status and events, and handles Kasa discovery,
+# relay control, and energy requests without modifying the main IoT backend.
+
 from __future__ import annotations
 
 import argparse, asyncio, collections, json, time

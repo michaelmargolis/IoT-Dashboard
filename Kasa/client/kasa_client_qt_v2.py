@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+
+# PyQt test client for the standalone Kasa backend.
+# Connects to the Kasa prototype server, shows discovered devices, preserves known devices,
+# highlights alias conflicts, and provides controls for discovery, relay toggling,
+# energy queries, and device detail inspection.
+
 from __future__ import annotations
 import json
 import sys

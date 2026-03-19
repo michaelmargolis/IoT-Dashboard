@@ -1,5 +1,11 @@
 # dashboard_client.py
 # version: v2.626-03-18 18:46 GMT
+
+# PyQt dashboard client for the main IoT backend.
+# Connects to the backend WebSocket, applies the A1 state model, drives the win system tray icon,
+# shows recent events and system status, and exposes control actions for diagnostics,
+# internet toggle, error clearing, and A1 power.
+
 import json
 import sys
 import time

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# kasa_manager.py
+# high level kasa interface 
+# proivdes kasa device diecovery, cache of found devices, relay control, energy reporting
+
 from __future__ import annotations
 import asyncio, dataclasses, socket, time
 from typing import Dict, Any, Optional
