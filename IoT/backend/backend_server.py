@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # backend_server.py
-# version: v2.3
-# date: 2026-03-16 08:58 GMT
+# version: v2.4
+# date: 2026-03-19 19:23 GMT
 
 # Main IoT backend server for the private and IoT subnets.
 # Publishes backend status over WebSocket and handles firewall control, diagnostics,
@@ -57,6 +57,7 @@ class KasaA1State:
     alias: Optional[str] = None
     last_check_utc: Optional[str] = None
     last_error: Optional[str] = None
+    power_on_started_monotonic: Optional[float] = None
 
 class EventLog:
     def __init__(self, maxlen: int = 100):
@@ -136,6 +137,7 @@ class KasaA1Client:
             self.state.last_check_utc = utc_now()
             self.state.last_error = "No A1 power payload"
             return self.state
+        prev_powered_off = self.state.powered_off
         self.state.service_available = True
         self.state.relay_on = a1_power.get("relay_on")
         self.state.powered_off = (a1_power.get("relay_on") is False)
@@ -145,6 +147,10 @@ class KasaA1Client:
         self.state.alias = a1_power.get("alias")
         self.state.last_check_utc = a1_power.get("last_refresh_utc") or utc_now()
         self.state.last_error = a1_power.get("last_error")
+        if prev_powered_off is True and self.state.powered_off is False:
+            self.state.power_on_started_monotonic = time.monotonic()
+        elif self.state.powered_off is True:
+            self.state.power_on_started_monotonic = None
         return self.state
 
     async def refresh(self):
@@ -238,12 +244,13 @@ class FirewallController:
         return True
 
 class Relay:
-    def __init__(self, cfg, events, is_a1_powered_off):
+    def __init__(self, cfg, events, is_a1_powered_off, is_a1_powering_up):
         self.cfg = cfg
         self.events = events
         self.state = RelayState()
         self.debug_verbose = False
         self.is_a1_powered_off = is_a1_powered_off
+        self.is_a1_powering_up = is_a1_powering_up
 
     def run_blocking(self):
         rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -269,6 +276,9 @@ class Relay:
                 if self.is_a1_powered_off():
                     self.state.last_error = None
                     self.state.last_seen_monotonic = None
+                    continue
+                if self.is_a1_powering_up():
+                    self.state.last_error = None
                     continue
                 self.state.timeout_count += 1
                 self.state.last_error = f"No discovery packets for {self.cfg.get('relay_rx_timeout_s', 30.0)}s"
@@ -367,13 +377,22 @@ class Backend:
         self.cfg = cfg
         self.events = EventLog(maxlen=cfg["event_log_max"])
         self.kasa_a1 = KasaA1Client(cfg, self.events)
-        self.relay = Relay(cfg, self.events, self.is_a1_powered_off)
+        self.relay = Relay(cfg, self.events, self.is_a1_powered_off, self.is_a1_powering_up)
         self.diag = Diagnostics(cfg, self.events, self.is_a1_powered_off)
         self.firewall = FirewallController(cfg, self.events)
         self.system = SystemStatus()
         self.clients = set()
     def is_a1_powered_off(self):
         return self.kasa_a1.state.service_available and self.kasa_a1.state.powered_off
+    def is_a1_powering_up(self):
+        ts = self.kasa_a1.state.power_on_started_monotonic
+        if not self.kasa_a1.state.service_available:
+            return False
+        if self.kasa_a1.state.powered_off:
+            return False
+        if ts is None:
+            return False
+        return (time.monotonic() - ts) < float(self.cfg.get("a1_powerup_timeout_s", 25.0))
     def clear_errors(self):
         self.relay.state.last_error = None
         self.diag.state.last_error = None

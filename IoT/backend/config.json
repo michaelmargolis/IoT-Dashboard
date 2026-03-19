@@ -15,6 +15,7 @@
     "event_log_max": 100,
     "event_tail_default": 20,
     "relay_rx_timeout_s": 30.0,
+    "a1_powerup_timeout_s": 25.0,
     "kasa_ws_url": "ws://127.0.0.1:8775",
     "kasa_poll_interval_s": 2.0,
     "kasa_timeout_s": 1.0
