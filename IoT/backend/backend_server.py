@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Deque, Dict, Optional
 import websockets
 
+
 @dataclasses.dataclass
 class RelayState:
     running: bool = False
@@ -519,6 +520,7 @@ class Backend:
             await safe_send(websocket, {"type": "error", "message": "invalid JSON"})
             return
         t = msg.get("type")
+        print("got msg:", t)
         if t == "get_status":
             await safe_send(websocket, self.build_status()); return
         if t == "get_events":
@@ -539,10 +541,10 @@ class Backend:
             self.clear_errors()
             await safe_send(websocket, {"type": "ack", "action": "clear_errors", "ok": True}); return
         if t == "toggle_a1_power":
-            result = await self.kasa.toggle_a1_power()
+            result = await self.kasa_a1.toggle()
             await safe_send(websocket, {
                 "type": "ack",
-                "action": "toggle_a1_power",
+                "action": "kasa.toggle_a1_power",
                 "ok": True,
                 "result": result
             })
