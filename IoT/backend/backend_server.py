@@ -515,7 +515,13 @@ class Backend:
             self.clear_errors()
             await safe_send(websocket, {"type": "ack", "action": "clear_errors", "ok": True}); return
         if t == "toggle_a1_power":
-            await safe_send(websocket, await self.kasa_a1.toggle()); return
+            result = await self.kasa.toggle_a1_power()
+            await safe_send(websocket, {
+                "type": "ack",
+                "action": "kasa_toggle_a1_power",
+                "ok": True,
+                "result": result
+            })
         if t == "ping":
             await safe_send(websocket, {"type": "pong", "ts": utc_now()}); return
         await safe_send(websocket, {"type": "error", "message": f"unknown message type: {t}"})
