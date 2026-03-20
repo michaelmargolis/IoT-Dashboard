@@ -518,7 +518,7 @@ class Backend:
             result = await self.kasa.toggle_a1_power()
             await safe_send(websocket, {
                 "type": "ack",
-                "action": "kasa_toggle_a1_power",
+                "action": "toggle_a1_power",
                 "ok": True,
                 "result": result
             })
