@@ -107,8 +107,32 @@ class KasaA1Client:
                         ping_timeout=20
                     )
                 await asyncio.wait_for(self.ws.send(json.dumps(payload)), timeout=timeout)
-                raw = await asyncio.wait_for(self.ws.recv(), timeout=timeout)
-                return json.loads(raw)
+                expected_type = payload.get("type")
+                deadline = time.monotonic() + timeout
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise asyncio.TimeoutError(f"Timed out waiting for {expected_type}")
+                    raw = await asyncio.wait_for(self.ws.recv(), timeout=remaining)
+                    reply = json.loads(raw)
+
+                    if reply.get("type") == "status":
+                        a1_power = ((reply.get("dashboard_controls") or {}).get("a1_power"))
+                        if a1_power:
+                            self._apply_a1_power(a1_power)
+                        continue
+
+                    if expected_type == "kasa_get_a1_power":
+                        if reply.get("type") == "ack" and reply.get("action") == "kasa_get_a1_power":
+                            return reply
+                        continue
+
+                    if expected_type == "kasa_toggle_a1_power":
+                        if reply.get("type") == "ack" and reply.get("action") == "kasa_toggle_a1_power":
+                            return reply
+                        continue
+
+                    return reply
         except Exception as e:
             async with self.ws_lock:
                 if self.ws is not None:
