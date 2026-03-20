@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # backend_server.py
-# version: v2.4
-# date: 2026-03-19 19:23 GMT
+# version: v2.5
+# date: 2026-03-19 21:36 GMT
 
 # Main IoT backend server for the private and IoT subnets.
 # Publishes backend status over WebSocket and handles firewall control, diagnostics,
@@ -424,6 +424,7 @@ class Backend:
                 "ssdp_port": self.cfg["ssdp_port"],
                 "ws_port": self.cfg["ws_port"],
                 "relay_rx_timeout_s": self.cfg["relay_rx_timeout_s"],
+                "a1_powerup_timeout_s": self.cfg["a1_powerup_timeout_s"],
             },
             "relay": {
                 "running": self.relay.state.running,
