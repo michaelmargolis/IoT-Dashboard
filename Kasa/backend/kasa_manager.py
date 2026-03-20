@@ -194,7 +194,20 @@ class KasaManager:
         dev = self.devices.get(cache_id)
         if not dev:
             return {"type": "ack", "action": "kasa_set_relay", "ok": False, "cache_id": cache_id, "error": "Unknown device"}
-        obj = await self._udp_query(dev.ip, build_set_relay(enabled, dev.cache_id if dev.child_id else None))
+        child_target = dev.cache_id if dev.child_id else None
+        print({
+            "target_cache_id": cache_id,
+            "device_id": dev.device_id,
+            "child_id": dev.child_id,
+            "ip": dev.ip,
+            "payload": (
+                {"context": {"child_ids": [child_target]}, "system": {"set_relay_state": {"state": 1 if enabled else 0}}}
+                if child_target
+                else {"system": {"set_relay_state": {"state": 1 if enabled else 0}}}
+            )
+        }, flush=True)
+        obj = await self._udp_query(dev.ip, build_set_relay(enabled, child_target))
+
         if obj is None:
             dev.reachable = False
             dev.last_error = "No response to set_relay"
