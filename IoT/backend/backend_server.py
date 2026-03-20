@@ -118,7 +118,7 @@ class KasaA1Client:
                     reply = json.loads(raw)
 
                     if reply.get("type") == "status":
-                        a1_power = ((reply.get("dashboard_controls") or {}).get("a1_power"))
+                        a1_power = ((reply.get("kasa") or {}).get("a1_power"))
                         if a1_power:
                             self._apply_a1_power(a1_power)
                         continue
@@ -542,12 +542,8 @@ class Backend:
             await safe_send(websocket, {"type": "ack", "action": "clear_errors", "ok": True}); return
         if t == "toggle_a1_power":
             result = await self.kasa_a1.toggle()
-            await safe_send(websocket, {
-                "type": "ack",
-                "action": "kasa.toggle_a1_power",
-                "ok": True,
-                "result": result
-            })
+            await safe_send(websocket, await self.kasa_a1.toggle())
+            return
         if t == "ping":
             await safe_send(websocket, {"type": "pong", "ts": utc_now()}); return
         await safe_send(websocket, {"type": "error", "message": f"unknown message type: {t}"})

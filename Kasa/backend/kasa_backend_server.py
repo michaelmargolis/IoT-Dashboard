@@ -52,8 +52,10 @@ class KasaBackend:
                 "kasa_discovery_interval_s": self.cfg["kasa_discovery_interval_s"],
                 "kasa_status_interval_s": self.cfg["kasa_status_interval_s"],
             },
-            "kasa": self.kasa.build_status_block(),
-            "dashboard_controls": self.kasa.build_dashboard_controls(),
+            "kasa": {
+                **self.kasa.build_status_block(),
+                "a1_power": self.kasa.build_a1_power_status(),
+            },            
             "events": self.events.tail(self.cfg["event_tail_default"]),
         }
 
