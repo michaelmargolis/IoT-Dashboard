@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- dashboard_client.ui | version: v2.6 | date: 2026-03-18 18:46 GMT -->
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -8,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>640</width>
-    <height>652</height>
+    <height>659</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -418,7 +417,7 @@
        <item>
         <widget class="QPushButton" name="run_diagnostics_button">
          <property name="text">
-          <string>Run Diagnostics</string>
+          <string>Probe A1</string>
          </property>
         </widget>
        </item>
@@ -486,9 +485,6 @@
       </item>
       <item>
        <spacer name="events_controls_spacer">
-        <property name="orientation">
-         <enum>Qt::Orientation::Horizontal</enum>
-        </property>
         <property name="sizeHint" stdset="0">
          <size>
           <width>40</width>

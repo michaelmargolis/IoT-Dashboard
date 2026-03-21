@@ -1,7 +1,7 @@
 # Small client-side test helpers for backend reachability checks.
 # Currently provides a cross-platform ping test used by the dashboard client.
 
-mport platform
+import platform
 import subprocess
 
 
