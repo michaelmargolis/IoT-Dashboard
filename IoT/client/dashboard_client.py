@@ -1,6 +1,6 @@
 # dashboard_client.py
-# version: v2.626-03-18 18:46 GMT
-
+# version: v2.7
+# date: 2026-03-21 13:45 GMT
 # PyQt dashboard client for the main IoT backend.
 # Connects to the backend WebSocket, applies the A1 state model, drives the win system tray icon,
 # shows recent events and system status, and exposes control actions for diagnostics,
@@ -69,9 +69,11 @@ class MainWindow(QMainWindow):
         self.a1_ping_ok = None
         self.a1_sm = A1StateMachine(self.client_config.get("a1_powerup_timeout_s", 25.0))
         self.last_a1_result = None
-        self.local_events = collections.deque(maxlen=20)
-        self._last_a1_sig = None
+        self.local_events = collections.deque(maxlen=100)
+        self._last_a1_error_sig = None
         self._last_status_error_sig = None
+        self.persistent_alert_status = "No Alert"
+        self.persistent_alert_detail = "-"
         self.allow_close = False
 
         self.socket = QWebSocket()
@@ -219,14 +221,14 @@ class MainWindow(QMainWindow):
     def on_disconnected(self) -> None:
         self.backend_state_label.setText("Backend: Disconnected")
         self.add_local_event("error", "Dashboard disconnected from backend")
+        self.set_persistent_alert("Warning", "Dashboard disconnected from backend")
         self.set_connected_state(False)
         self.request_events_timer.stop()
         self.ping_timer.stop()
         self.a1_ping_ok = None
         self.last_a1_result = None
         self.update_a1_toggle_button(None)
-        self.alert_status_value_2.setText("No Alert")
-        self.alert_detail_value_2.setText("-")
+        self.update_alert_panel(self.combined_events(self.last_status.get("events", []) if self.last_status else []), self.last_a1_result, self.last_status)
         self.evaluate_and_apply_overall_state(disconnected=True)
         if not self.reconnect_timer.isActive():
             self.reconnect_timer.start()
@@ -234,6 +236,8 @@ class MainWindow(QMainWindow):
     def on_error(self, _error) -> None:
         self.backend_state_label.setText(f"Backend: Error - {self.socket.errorString()}")
         self.add_local_event("error", "Backend socket error", error=self.socket.errorString())
+        self.set_persistent_alert("Alert Active", f"backend: {self.socket.errorString()}")
+        self.update_alert_panel(self.combined_events(self.last_status.get("events", []) if self.last_status else []), self.last_a1_result, self.last_status)
         self.evaluate_and_apply_overall_state(disconnected=True)
 
     def on_message(self, message: str) -> None:
@@ -265,17 +269,25 @@ class MainWindow(QMainWindow):
             if action == "toggle_a1_power":
                 if payload.get("ok") is False:
                     self.add_local_event("error", "A1 toggle failed", error=payload.get("error") or "Unknown backend error")
+                    self.set_persistent_alert("Alert Active", payload.get("error") or "Unknown backend error")
                     QMessageBox.warning(self, "A1 Toggle Failed", payload.get("error") or "Unknown backend error")
                 self.send_message({"type": "get_status"})
                 self.request_events()
                 return
-            if action in ("set_iot_internet", "clear_errors"):
+            if action == "clear_errors":
+                self.clear_local_errors()
+                self.send_message({"type": "get_status"})
+                self.request_events()
+                return
+            if action == "set_iot_internet":
                 self.send_message({"type": "get_status"})
                 self.request_events()
                 return
 
         if msg_type == "error":
             self.add_local_event("error", payload.get("message", "Unknown backend error"))
+            self.set_persistent_alert("Alert Active", payload.get("message", "Unknown backend error"))
+            self.update_alert_panel(self.combined_events(self.last_status.get("events", []) if self.last_status else []), self.last_a1_result, self.last_status)
             QMessageBox.warning(self, "Backend Error", payload.get("message", "Unknown backend error"))
 
     def on_toggle_events(self, checked: bool) -> None:
@@ -328,6 +340,7 @@ class MainWindow(QMainWindow):
         )
         QMessageBox.information(self, "Diagnostics", text)
 
+
     def add_local_event(self, kind: str, message: str, **extra) -> None:
         evt = {
             "ts": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -340,7 +353,20 @@ class MainWindow(QMainWindow):
     def combined_events(self, backend_events: list) -> list:
         events = list(backend_events or []) + list(self.local_events)
         events.sort(key=lambda e: e.get("ts", ""))
-        return events[-int(self.client_config["event_limit"]):]
+        return events
+
+    def set_persistent_alert(self, status_text: str, detail_text: str) -> None:
+        self.persistent_alert_status = status_text
+        self.persistent_alert_detail = detail_text
+
+    def clear_local_errors(self) -> None:
+        self.local_events.clear()
+        self._last_a1_error_sig = None
+        self._last_status_error_sig = None
+        self.persistent_alert_status = "No Alert"
+        self.persistent_alert_detail = "-"
+        self.alert_status_value_2.setText("No Alert")
+        self.alert_detail_value_2.setText("-")
 
     def local_alert_from_status(self, payload: dict):
         relay = payload.get("relay", {})
@@ -375,10 +401,36 @@ class MainWindow(QMainWindow):
             self._last_status_error_sig = sig
             if relay.get("last_error"):
                 self.add_local_event("error", "Relay error", error=relay.get("last_error"))
+                self.set_persistent_alert("Alert Active", f"relay: {relay.get('last_error')}")
             if firewall.get("last_error"):
                 self.add_local_event("error", "Firewall error", error=firewall.get("last_error"))
+                self.set_persistent_alert("Alert Active", f"firewall: {firewall.get('last_error')}")
             if system.get("last_error"):
                 self.add_local_event("error", "System error", error=system.get("last_error"))
+                self.set_persistent_alert("Alert Active", f"system: {system.get('last_error')}")
+
+    def record_a1_error_events(self) -> None:
+        sig = None
+        if self.last_a1_result is not None:
+            sig = (
+                self.last_a1_result.get("a1_state"),
+                self.last_a1_result.get("alert_reason"),
+            )
+        if sig != self._last_a1_error_sig:
+            self._last_a1_error_sig = sig
+            if self.last_a1_result is None:
+                return
+            a1_state = self.last_a1_result.get("a1_state")
+            if a1_state == A1State.FAULT:
+                detail = self.last_a1_result.get("alert_reason") or "Partial A1 response"
+                self.add_local_event("error", "A1 fault", detail=detail)
+                self.set_persistent_alert("Alert Active", detail)
+            elif a1_state == A1State.UNAVAILABLE:
+                self.add_local_event("warning", "A1 unavailable")
+                self.set_persistent_alert("Warning", "A1 unavailable")
+            elif a1_state == A1State.DISCONNECTED:
+                self.add_local_event("warning", "A1 disconnected")
+                self.set_persistent_alert("Warning", "A1 disconnected")
 
     def build_a1_inputs(self, payload: dict) -> A1Inputs:
         relay = payload.get("relay", {})
@@ -409,19 +461,8 @@ class MainWindow(QMainWindow):
         relay_age = relay.get("seconds_since_last")
 
         self.last_a1_result = self.a1_sm.update(self.build_a1_inputs(payload))
-        new_sig = (
-            self.last_a1_result.get("a1_state"),
-            self.last_a1_result.get("alert_reason"),
-            self.last_a1_result.get("text"),
-        )
-        if self._last_a1_sig != new_sig:
-            self._last_a1_sig = new_sig
-            self.add_local_event(
-                "status",
-                "A1 state changed",
-                detail=self.last_a1_result.get("alert_reason") or self.last_a1_result.get("text"),
-            )
         self.record_status_error_events(payload)
+        self.record_a1_error_events()
         a1_state_enum = self.last_a1_result["a1_state"]
         a1_status_text = self.last_a1_result["text"]
 
@@ -622,15 +663,17 @@ class MainWindow(QMainWindow):
         return message
 
     def update_alert_panel(self, events: list, a1_result: dict | None = None, payload: dict | None = None) -> None:
-        status_text = "No Alert"
-        detail_text = "-"
+        status_text = self.persistent_alert_status
+        detail_text = self.persistent_alert_detail
         if a1_result is not None and a1_result.get("a1_state") == A1State.FAULT:
             status_text = "Alert Active"
             detail_text = a1_result.get("alert_reason") or "Partial A1 response"
+            self.set_persistent_alert(status_text, detail_text)
         else:
             local_alert = self.local_alert_from_status(payload) if payload is not None else None
             if local_alert is not None:
                 status_text, detail_text = local_alert
+                self.set_persistent_alert(status_text, detail_text)
             else:
                 for event in reversed(list(events)):
                     message = str(event.get("message", ""))
@@ -641,8 +684,7 @@ class MainWindow(QMainWindow):
                             detail_text = ", ".join(f"{key}: {value}" for key, value in causes.items())
                         else:
                             detail_text = self.format_event_message(event)
-                        break
-                    if message == "Alert cleared":
+                        self.set_persistent_alert(status_text, detail_text)
                         break
         self.alert_status_value_2.setText(status_text)
         self.alert_detail_value_2.setText(detail_text)
@@ -656,10 +698,10 @@ class MainWindow(QMainWindow):
         return filtered
 
     def print_recent_events(self) -> None:
-        if self.last_status is None:
+        if self.last_status is None and not self.local_events:
             print("No events available", flush=True)
             return
-        recent = self.filter_events(self.combined_events(self.last_status.get("events", [])))
+        recent = self.filter_events(self.combined_events(self.last_status.get("events", []) if self.last_status else []))[-int(self.client_config["event_limit"]):]
         print("Recent events:", flush=True)
         for event in reversed(recent):
             print(
