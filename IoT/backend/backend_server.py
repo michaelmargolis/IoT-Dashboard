@@ -542,7 +542,7 @@ class Backend:
             await safe_send(websocket, {"type": "ack", "action": "clear_errors", "ok": True}); return
         if t == "toggle_a1_power":
             result = await self.kasa_a1.toggle()
-            await safe_send(websocket, await self.kasa_a1.toggle())
+            await safe_send(websocket, result)
             return
         if t == "ping":
             await safe_send(websocket, {"type": "pong", "ts": utc_now()}); return
